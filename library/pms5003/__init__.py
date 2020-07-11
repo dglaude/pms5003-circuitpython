@@ -1,13 +1,10 @@
+import RPi.GPIO as GPIO
+import serial
 import struct
 import time
 
-import board
-import busio
-from digitalio import DigitalInOut, Direction
 
-import pimoroni_physical_feather_pins
-
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 
 PMS5003_SOF = bytearray(b'\x42\x4d')
@@ -87,39 +84,33 @@ PM10 ug/m3 (atmos env):                                        {}
 
 
 class PMS5003():
-    #def __init__(self, baudrate=9600, pin_enable=board.D10, pin_reset=board.D11):
-    def __init__(self, baudrate=9600, pin_enable=pimoroni_physical_feather_pins.pin22(), pin_reset=pimoroni_physical_feather_pins.pin23()):
+    def __init__(self, device='/dev/ttyAMA0', baudrate=9600, pin_enable=22, pin_reset=27):
         self._serial = None
+        self._device = device
         self._baudrate = baudrate
         self._pin_enable = pin_enable
-        self._enable = None
         self._pin_reset = pin_reset
-        self._reset = None
         self.setup()
 
     def setup(self):
-        self._enable = DigitalInOut(self._pin_enable)
-        self._enable.direction = Direction.OUTPUT
-        self._enable.value = True
-        
-        self._reset = DigitalInOut(self._pin_reset)
-        self._reset.direction = Direction.OUTPUT
-        self._reset.value = True
-        
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self._pin_enable, GPIO.OUT, initial=GPIO.HIGH)
+        GPIO.setup(self._pin_reset, GPIO.OUT, initial=GPIO.HIGH)
 
         if self._serial is not None:
-            self._serial.deinit()
+            self._serial.close()
 
-        self._serial = busio.UART(board.TX, board.RX, baudrate=self._baudrate, timeout=4)
+        self._serial = serial.Serial(self._device, baudrate=self._baudrate, timeout=4)
 
         self.reset()
 
     def reset(self):
         time.sleep(0.1)
-        self._reset.value = False
-        self._serial.reset_input_buffer()
+        GPIO.output(self._pin_reset, GPIO.LOW)
+        self._serial.flushInput()
         time.sleep(0.1)
-        self._reset.value = True
+        GPIO.output(self._pin_reset, GPIO.HIGH)
 
     def read(self):
         start = time.time()
